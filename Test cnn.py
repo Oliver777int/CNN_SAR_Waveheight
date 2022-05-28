@@ -12,9 +12,9 @@ from tqdm import tqdm
 from tifffile import imread
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import r2_score
-from scipy.interpolate import interpn
 from sklearn.model_selection import train_test_split
-from matplotlib import cm
+from plot_fun import density_scatter
+
 
 # Rebuild the entire dataset
 rebuild_data = False
@@ -55,20 +55,25 @@ else:
 class Build_Dataset():
     path = r'D:\CNN_storage\s1_output_dataset'
     count = 0
-    training_data = []
+    training_data = []          # Stores pixel values and labels
     saved_numpy_arrays = 1      # Tracks the number of saved numpy arrays
 
     def make_training_data(self):
+        # Read and shuffle the folder names
         folder = os.listdir(self.path)
         random.shuffle(folder)
         for f in tqdm(folder):
             try:
                 path = os.path.join(self.path, f)
+
+                # Read tif files
                 img = imread(path)
                 pxl_img = np.array(img)
                 label = float(f.split('.tif')[0])
                 self.training_data.append([pxl_img, label])
                 self.count += 1
+
+                # If numpy array holds 10000 images, then create a new array.
                 if self.count % 10000 == 0:
                     np.random.shuffle(self.training_data)
                     np.save('training_data_' + str(self.saved_numpy_arrays) + '.npy', self.training_data)
@@ -89,15 +94,15 @@ class Build_Dataset():
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(1, 32, (5, 5))    # Conv layer
+        self.conv1 = nn.Conv2d(1, 32, (5, 5))
         self.batchnorm1 = nn.BatchNorm2d(32)
-        self.conv2 = nn.Conv2d(32, 32, (5, 5))   # Conv layer 2
+        self.conv2 = nn.Conv2d(32, 32, (5, 5))
         self.batchnorm2 = nn.BatchNorm2d(32)
-        self.conv3 = nn.Conv2d(32, 32, (5, 5))  # Conv layer 3
+        self.conv3 = nn.Conv2d(32, 32, (5, 5))
         self.batchnorm3 = nn.BatchNorm2d(32)
-        self.conv4 = nn.Conv2d(32, 32, (5, 5))  # Conv layer 3
+        self.conv4 = nn.Conv2d(32, 32, (5, 5))
         self.batchnorm4 = nn.BatchNorm2d(32)
-        self.conv5 = nn.Conv2d(32, 32, (5, 5))  # Conv layer 3
+        self.conv5 = nn.Conv2d(32, 32, (5, 5))
         self.batchnorm5 = nn.BatchNorm2d(32)
         self.dropout = nn.Dropout(0.25)
 
@@ -119,7 +124,7 @@ class Net(nn.Module):
         x = self.batchnorm4(x)
         x = F.max_pool2d(F.relu(self.conv5(x)), (2, 2))
         x = self.batchnorm5(x)
-        # print(x[0].shape)
+
         if self._to_linear is None:
             self._to_linear = x[0].shape[0]*x[0].shape[1]*x[0].shape[2]
             #print(self._to_linear)  # Input size of first fully connected layer
@@ -145,23 +150,30 @@ def test(size=32):
 
 def train():
     with open(f'{MODEL_NAME}.log', 'a') as f:
-        lossarray = []
-        vallossarray = []
+        loss_array = []
+        val_loss_array = []
+
+        # Splits the dataset into batch sizes. Training and testing in recorded in model.log
         for i in tqdm(range(0, len(train_x), BATCH_SIZE)):
             batch_x = train_x[i:i + BATCH_SIZE].view(-1, 1, n, n)
             batch_y = train_y[i:i + BATCH_SIZE]
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
             loss = fwd_pass(batch_x, batch_y, train=True)
-            lossarray.append(loss.cpu().detach().numpy())
+            loss_array.append(loss.cpu().detach().numpy())
+
             if i % BATCH_SIZE/2 == 0:
                 val_loss = test(size=BATCH_SIZE)
-                vallossarray.append(val_loss.cpu().detach().numpy())
+                val_loss_array.append(val_loss.cpu().detach().numpy())
                 f.write(f'{MODEL_NAME}, {round(time.time(), 3)}, {round(float(loss), 4)}, {round(float(val_loss), 4)}\n')
-        meanvalloss=np.mean(vallossarray)
-        meanloss=np.mean(lossarray)
-        totalvalloss.append(meanvalloss)
-        totaltrainloss.append(meanloss)
-        print(f'Training Loss: {meanloss}. Validation Loss: {meanvalloss}')
+
+        # For the loss graph
+        mean_val_loss=np.mean(val_loss_array)
+        mean_loss=np.mean(loss_array)
+
+        # These values are printed after training
+        total_val_loss.append(mean_val_loss)
+        total_train_loss.append(mean_loss)
+        print(f'Training Loss: {mean_loss}. Validation Loss: {mean_val_loss}')
 
 
 def fwd_pass(x, y, train=False):
@@ -195,8 +207,6 @@ def create_loss_graph(model_name):
     ax1 = plt.subplot2grid((2, 1), (0, 0))
     ax2 = plt.subplot2grid((2, 1), (1, 0), sharex=ax1)
 
-    # ax1.plot(times, accuracies, label="acc")
-    # ax1.plot(times, val_accs, label="val_acc")
     ax1.legend(loc=2)
     ax2.plot(times, losses, label="loss")
     ax2.plot(times, val_losses, label="val_loss")
@@ -204,56 +214,9 @@ def create_loss_graph(model_name):
     plt.show()
 
 
-def density_scatter(x, y, ax=None, sort=True, bins=50, mean_absolute_error=None, rmse=None, res=None, **kwargs):
-    if ax is None:
-        fig, ax = plt.subplots()
-    data, x_e, y_e = np.histogram2d(x, y, bins=bins, density=True)
-    z = interpn((0.5 * (x_e[1:] + x_e[:-1]), 0.5 * (y_e[1:] + y_e[:-1])), data, np.vstack([x, y]).T,
-                method="splinef2d", bounds_error=False)
-
-    # To be sure to plot all data
-    z[np.where(np.isnan(z))] = 0.0
-
-    # Sort the points by density, so that the densest points are plotted last
-    if sort:
-        idx = z.argsort()
-        x, y, z = x[idx], y[idx], z[idx]
-
-    x_eq_y = np.linspace(0, x.max())
-    plt.plot(x_eq_y, x_eq_y, color='orange', label='x=y')
-    plt.scatter(x, y, c=z)
-
-    sorted_pairs = sorted((i, j) for i, j in zip(x, y))
-    x_sorted = []
-    y_sorted = []
-    for i, j in sorted_pairs:
-        x_sorted.append(i)
-        y_sorted.append(j)
-
-    # change this to e.g 3 to get a polynomial of degree 3 to fit the curve
-    order_of_the_fitted_polynomial = 1
-    p30 = np.poly1d(np.polyfit(x_sorted, y_sorted, order_of_the_fitted_polynomial))
-    plt.plot(x_sorted, p30(x_sorted), color='red', label='linjär anpassning')
-
-    ax.set_aspect('equal', 'box')
-    plt.xlabel("Målvärde [m]")
-    plt.ylabel("Prediktion [m]")
-    plt.xlim([0, 2.5])
-    plt.ylim([0, 2.5])
-    if mean_absolute_error is not None and rmse is not None and res is not None:
-        fig_text = f"MAE={mean_absolute_error:.3f}m\nRMSE={rmse:.3f}m\nR={res:.3f}"
-        plt.plot([], [], ' ', label=fig_text)
-        # plt.text(0, 2.2, s=s, fontsize=12)
-
-    # norm = Normalize(vmin=np.min(z), vmax=np.max(z))
-    cbar = fig.colorbar(cm.ScalarMappable(), ax=ax)
-    cbar.ax.set_ylabel('Densitet')
-    ax.legend()
-    return ax
-
-
 def buoy_eval():
-    boj_data = np.load('boj_data.npy', allow_pickle=True)
+    # Buoy data is generated in preproccesing and holds pixel values, time and position.
+    boj_data = np.load('buoy_data.npy', allow_pickle=True)
     time = np.array([i[1] for i in boj_data])
     pos_1 = np.array([i[2] for i in boj_data])
     pos_2 = np.array([i[3] for i in boj_data])
@@ -269,9 +232,9 @@ def buoy_eval():
         for j in range(len(outputs)):
             output_array.append(outputs[j])
     output_array = np.squeeze(output_array)
-    print(output_array[0])
-    print(time[0])
-    with open(r'D:\CNN_storage\CSV_output\boj_prediction.csv', 'w', encoding='UTF8', newline='') as f:
+
+    # Writes the buoy evaluation to csv for comparison with buoy data. Choose path for output below
+    with open(r'buoy_prediction.csv', 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         for i in range(len(output_array)):
             data = [time[i], pos_1[i], pos_2[i], output_array[i]]
@@ -308,22 +271,22 @@ def full_evaluation():
 
     output_array = np.squeeze(output_array)
     input_array = np.squeeze(input_array)
-    correct = 0
-    correct1 = 0
-    correct2 = 0
+    correct_1 = 0
+    correct_2 = 0
+    correct_3 = 0
     total = 0
     for k in range(len(output_array)):
         if abs(output_array[k]-input_array[k]) < 1:
-            correct += 1
-        if abs(output_array[k] - input_array[k]) < 0.2:
-            correct1 += 1
+            correct_1 += 1
         if abs(output_array[k]-input_array[k]) < 0.5:
-            correct2 += 1
+            correct_2 += 1
+        if abs(output_array[k] - input_array[k]) < 0.2:
+            correct_3 += 1
         total += 1
 
-    print("Accuracy within 20 centmeters:", round(correct1 / total, 3))
-    print("Accuracy within 50 centimeters:", round(correct2 / total, 3))
-    print("Accuracy within 100 centimeters:", round(correct / total, 3))
+    print("Accuracy within 20 centmeters:", round(correct_3 / total, 3))
+    print("Accuracy within 50 centimeters:", round(correct_2 / total, 3))
+    print("Accuracy within 100 centimeters:", round(correct_1 / total, 3))
 
     # Calculates RMSE, R-value and MAE
     mse = mean_squared_error(input_array, output_array)
@@ -342,13 +305,6 @@ def full_evaluation():
 
     density_scatter(input_array, output_array, bins=50)
     plt.show()
-
-    '''with open(r'D:\CNN_storage\CSV_output\full_eval.csv', 'w', encoding='UTF8', newline='') as f:
-        writer = csv.writer(f)
-        for i in tqdm(range(len(output_array))):
-            data = [input_array[i], output_array[i]]
-            writer.writerow(data)
-    f.close()'''
 
 
 def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
@@ -401,8 +357,8 @@ if load_model:
     load_checkpoint(torch.load("my_checkpoint.pth.tar"))
 
 if run_training:
-    totalvalloss = []
-    totaltrainloss = []
+    total_val_loss = []
+    total_train_loss = []
     for epochs in range(EPOCHS):
         for iteration in range(np.load('saved_numpy_arrays.npy')):
             train_x, test_x, train_y, test_y = load_dataset(iteration)
@@ -416,8 +372,8 @@ if run_training:
                 np.save('test_y_' + str(iteration + 1) + '.npy', test_y_save)
 
     create_loss_graph(MODEL_NAME)
-    print('Total Train Loss: ', np.mean(totaltrainloss))
-    print('Total Val Loss: ', np.mean(totalvalloss))
+    print('Total Train Loss: ', np.mean(total_train_loss))
+    print('Total Val Loss: ', np.mean(total_val_loss))
 
 if fully_evaluate_model:
     full_evaluation()
