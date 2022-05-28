@@ -332,7 +332,6 @@ def load_dataset(iterations):
 
     # Puts data and labels in torch format
     x = torch.Tensor(np.array([i[0] for i in training_data])).view(-1, n, n)
-    # x = (x - torch.mean(x))/torch.std(x)
     y = torch.Tensor(np.array([i[1] for i in training_data])).view(-1, 1)
 
     # Splits the dataset into training and testing using a random seed

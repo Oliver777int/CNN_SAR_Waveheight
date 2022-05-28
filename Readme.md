@@ -36,4 +36,4 @@ The program includes boolean and global variables that needs to be manually set.
 - mini_prediction: Evaluate on a small part of validation set (or training set if train_prediction is True)
 - iterate_numpy_arrays: Should always be True, unless you only want to fully evaluate the model, then set this boolean
 to False
-- boj_evaluation: Evaluates on buoys.
+- boj_evaluation: Evaluates on buoys. (requires buoy data and output folder)
