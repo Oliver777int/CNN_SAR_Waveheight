@@ -1,10 +1,10 @@
-#Description of code
+# Description of code
 
 This script includes a convolutional neural network (CNN), a function that builds a dataset
 and ways of training and evaluating the CNN. This CNN is meant to predict the significant
 wave height from SAR images. (To acquire preprocessed SAR images, check out the linked repo below)
 
-#The CNN
+# The CNN
 - The Net() class includes the structure of the CNN and a simple forward pass
 - The variable _to_linear finds the flattened output of the last convolutional layer
 - All layers use batchnorm, ReLu and the conv layers also use Max pool.
@@ -20,13 +20,13 @@ dataset in one numpy array is because it causes memory problems. There are also 
 called test_x and test_y which are used for evaluating the model. When training the model
 every numpy array is being shown to the network 1 time per epoch.
 
-#Parameters to chose
+# Parameters to chose
 The program includes boolean and global variables that needs to be manually set.
-###Variables
+### Variables
 - n = pixel size of sub images (nxn)
 - BATCH_SIZE, learning_rate and EPOCHS
 - path = path to folder where the .tif files are stored (Class variable, line 56)
-###Booleans
+### Booleans
 - Rebuild_data: Rebuilds the dataset. Only needs to be run 1 time.
 - Load_model: Loads the previously saved model, will error if no model is saved.
 - Save_model: Saves the current model.
